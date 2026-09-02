@@ -1,16 +1,42 @@
 import logging
+import random
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from config import settings
+
+
+INSPIRATIONAL_QUOTES = (
+    "Make it happen.",
+    "Keep going. 🔥",
+    "You got this. 💜",
+    "Stay focused.",
+    "Progress > perfection.",
+    "Dream big. Work bigger.",
+    "One step at a time.",
+    "Discipline beats motivation.",
+    "Never stop improving.",
+    "Trust the process.",
+    "Your time is now.",
+    "Be better than yesterday.",
+    "Small steps. Big results.",
+    "Focus. Execute. Repeat.",
+    "Turn ideas into action.",
+    "Don't quit. Adapt.",
+    "Stay hungry. Stay driven.",
+    "Build your future.",
+    "Consistency creates results.",
+    "Believe. Begin. Become.",
+)
 
 
 class MakeItHappenBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         super().__init__(command_prefix="!", intents=intents)
+        self.last_quote: str | None = None
 
     async def setup_hook(self) -> None:
         extensions = (
@@ -32,9 +58,26 @@ class MakeItHappenBot(commands.Bot):
             synced = await self.tree.sync()
             logging.info("Synced %d global commands", len(synced))
 
+        self.rotate_presence.start()
+
     async def on_ready(self) -> None:
         if self.user:
             logging.info("Logged in as %s (%s)", self.user, self.user.id)
+
+    @tasks.loop(minutes=10)
+    async def rotate_presence(self) -> None:
+        quotes = [quote for quote in INSPIRATIONAL_QUOTES if quote != self.last_quote]
+        quote = random.choice(quotes)
+        self.last_quote = quote
+        await self.change_presence(
+            status=discord.Status.online,
+            activity=discord.Game(name=quote),
+        )
+        logging.info("Presence changed to: %s", quote)
+
+    @rotate_presence.before_loop
+    async def before_rotate_presence(self) -> None:
+        await self.wait_until_ready()
 
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
         logging.exception("Prefix command error", exc_info=error)
