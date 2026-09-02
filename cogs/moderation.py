@@ -4,6 +4,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from database import add_warning, clear_warnings, get_warnings
+
 
 class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -76,6 +78,33 @@ class Moderation(commands.Cog):
         await member.timeout(None, reason=f"{reason} | von {interaction.user}")
         await self._log(interaction.guild, "⏱️ Timeout Removed", f"**User:** {member.mention}\n**Moderator:** {interaction.user.mention}\n**Grund:** {reason}", discord.Color.green())
         await interaction.response.send_message(f"✅ Timeout von **{member}** entfernt.", ephemeral=True)
+
+    @app_commands.command(name="warn", description="Warnt ein Mitglied und speichert den Grund.")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    @app_commands.describe(member="Das Mitglied", reason="Grund für die Warnung")
+    async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str = "Kein Grund angegeben") -> None:
+        if not await self._can_moderate(interaction, member):
+            return await interaction.response.send_message("❌ Dieses Mitglied kann nicht gewarnt werden.", ephemeral=True)
+        warning_id = add_warning(interaction.guild.id, member.id, interaction.user.id, reason)
+        warnings = get_warnings(interaction.guild.id, member.id)
+        await self._log(interaction.guild, "⚠️ Member Warned", f"**User:** {member.mention}\n**Moderator:** {interaction.user.mention}\n**Warnung:** `#{warning_id}`\n**Grund:** {reason}", discord.Color.orange())
+        await interaction.response.send_message(f"⚠️ **{member}** wurde gewarnt. Gesamt: **{len(warnings)} Warnung(en)**.", ephemeral=True)
+
+    @app_commands.command(name="warnings", description="Zeigt die Warnungen eines Mitglieds.")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def warnings(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        rows = get_warnings(interaction.guild.id, member.id)
+        if not rows:
+            return await interaction.response.send_message(f"✅ **{member}** hat keine Warnungen.", ephemeral=True)
+        lines = [f"`#{row['id']}` — {row['reason']} · <@{row['moderator_id']}> · {row['created_at']}" for row in rows[:20]]
+        await interaction.response.send_message(f"⚠️ **Warnungen für {member}**\n\n" + "\n".join(lines), ephemeral=True)
+
+    @app_commands.command(name="clearwarns", description="Entfernt alle Warnungen eines Mitglieds.")
+    @app_commands.checks.has_permissions(moderate_members=True)
+    async def clearwarns(self, interaction: discord.Interaction, member: discord.Member) -> None:
+        count = clear_warnings(interaction.guild.id, member.id)
+        await self._log(interaction.guild, "🧹 Warnings Cleared", f"**User:** {member.mention}\n**Moderator:** {interaction.user.mention}\n**Anzahl:** {count}", discord.Color.green())
+        await interaction.response.send_message(f"🧹 **{count}** Warnungen von **{member}** entfernt.", ephemeral=True)
 
     @app_commands.command(name="purge", description="Löscht mehrere Nachrichten aus dem aktuellen Kanal.")
     @app_commands.checks.has_permissions(manage_messages=True)
