@@ -64,7 +64,7 @@ class MakeItHappenBot(commands.Bot):
         if self.user:
             logging.info("Logged in as %s (%s)", self.user, self.user.id)
 
-    @tasks.loop(minutes=10)
+    @tasks.loop(minutes=3)
     async def rotate_presence(self) -> None:
         quotes = [quote for quote in INSPIRATIONAL_QUOTES if quote != self.last_quote]
         quote = random.choice(quotes)
