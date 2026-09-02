@@ -23,6 +23,10 @@ class ModLogs(commands.Cog):
             pass
 
     @commands.Cog.listener()
+    async def on_mih_moderation_log(self, guild: discord.Guild, title: str, description: str, color: discord.Color) -> None:
+        await self.send_log(guild, title, description, color)
+
+    @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         await self.send_log(member.guild, "📥 Member Joined", f"{member.mention} `{member}`\nID: `{member.id}`", discord.Color.green())
 
