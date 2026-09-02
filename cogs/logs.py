@@ -35,6 +35,22 @@ class ModLogs(commands.Cog):
         await self.send_log(member.guild, "📤 Member Left", f"**{member}**\nID: `{member.id}`", discord.Color.orange())
 
     @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
+        if before.nick != after.nick:
+            await self.send_log(after.guild, "✏️ Nickname Changed", f"**User:** {after.mention}\n**Before:** {before.nick or before.name}\n**After:** {after.nick or after.name}")
+        before_roles = {role.id for role in before.roles}
+        after_roles = {role.id for role in after.roles}
+        added = [role.mention for role in after.roles if role.id not in before_roles]
+        removed = [role.mention for role in before.roles if role.id not in after_roles]
+        if added or removed:
+            changes = []
+            if added:
+                changes.append("Added: " + ", ".join(added))
+            if removed:
+                changes.append("Removed: " + ", ".join(removed))
+            await self.send_log(after.guild, "🎭 Roles Changed", f"**User:** {after.mention}\n" + "\n".join(changes))
+
+    @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
         if message.guild and not message.author.bot:
             content = message.content[:1000] if message.content else "*(kein Text / nicht im Cache)*"
