@@ -41,10 +41,14 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS profiles (
                 guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
                 display_name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '',
-                favorite_quote TEXT NOT NULL DEFAULT '', PRIMARY KEY (guild_id, user_id)
+                favorite_quote TEXT NOT NULL DEFAULT '', favorite_color TEXT NOT NULL DEFAULT 'purple',
+                PRIMARY KEY (guild_id, user_id)
             );
             """
         )
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(profiles)").fetchall()}
+        if "favorite_color" not in columns:
+            db.execute("ALTER TABLE profiles ADD COLUMN favorite_color TEXT NOT NULL DEFAULT 'purple'")
 
 
 def ensure_guild(guild_id: int) -> None:
@@ -113,9 +117,14 @@ def get_profile(guild_id: int, user_id: int) -> sqlite3.Row:
         return db.execute("SELECT * FROM profiles WHERE guild_id = ? AND user_id = ?", (guild_id, user_id)).fetchone()
 
 
-def set_profile(guild_id: int, user_id: int, display_name: str | None = None, bio: str | None = None, favorite_quote: str | None = None) -> None:
+def set_profile(guild_id: int, user_id: int, display_name: str | None = None, bio: str | None = None, favorite_quote: str | None = None, favorite_color: str | None = None) -> None:
     current = get_profile(guild_id, user_id)
-    values = (display_name if display_name is not None else current["display_name"], bio if bio is not None else current["bio"], favorite_quote if favorite_quote is not None else current["favorite_quote"])
+    values = (
+        display_name if display_name is not None else current["display_name"],
+        bio if bio is not None else current["bio"],
+        favorite_quote if favorite_quote is not None else current["favorite_quote"],
+        favorite_color if favorite_color is not None else current["favorite_color"],
+    )
     values = tuple(str(v)[:500] for v in values)
     with _connect() as db:
-        db.execute("UPDATE profiles SET display_name = ?, bio = ?, favorite_quote = ? WHERE guild_id = ? AND user_id = ?", (*values, guild_id, user_id))
+        db.execute("UPDATE profiles SET display_name = ?, bio = ?, favorite_quote = ?, favorite_color = ? WHERE guild_id = ? AND user_id = ?", (*values, guild_id, user_id))
