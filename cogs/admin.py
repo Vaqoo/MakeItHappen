@@ -1,5 +1,6 @@
 import re
 import time
+from datetime import timedelta
 
 import discord
 from discord import app_commands
@@ -21,7 +22,7 @@ class Admin(commands.Cog):
         set_config(interaction.guild.id, "log_channel_id", interaction.channel.id)
         await interaction.response.send_message("📋 **Mod Logs aktiviert.** Dieser Kanal ist jetzt der MIH Log-Kanal.", ephemeral=True)
 
-    @app_commands.command(name="setup_automod", description="Aktiviert den grundlegenden MIH Anti-Spam/Invite-Schutz.")
+    @app_commands.command(name="setup_automod", description="Aktiviert grundlegenden Anti-Spam- und Invite-Schutz.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup_automod(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -42,7 +43,6 @@ class Admin(commands.Cog):
         history = [t for t in self.recent_messages.get(key, []) if now - t < 8]
         history.append(now)
         self.recent_messages[key] = history
-
         invite = bool(config["automod_invites"]) and bool(re.search(r"(?:discord\.gg|discord(?:app)?\.com/invite)/[A-Za-z0-9-]+", message.content, re.I))
         flood = len(history) >= 6
         if not invite and not flood:
@@ -52,8 +52,8 @@ class Admin(commands.Cog):
         except discord.HTTPException:
             pass
         try:
-            await message.author.timeout(discord.utils.utcnow() + discord.timedelta(seconds=30), reason="MakeItHappen AutoMod")
-        except (discord.HTTPException, AttributeError):
+            await message.author.timeout(timedelta(seconds=30), reason="MakeItHappen AutoMod")
+        except discord.HTTPException:
             pass
         warning = "🚨 Invite-Link entfernt." if invite else "🚨 Spam/Flood erkannt und Nachricht entfernt."
         try:
