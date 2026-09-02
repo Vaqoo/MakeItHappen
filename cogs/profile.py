@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from database import get_achievements, get_stats, set_profile
+from database import get_achievements, get_profile, get_stats, set_profile
 
 
 class Profile(commands.Cog):
@@ -31,13 +31,31 @@ class Profile(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="profile_edit", description="Passe dein MakeItHappen-Profil an.")
-    @app_commands.describe(display_name="Name im MIH-Profil", bio="Kurze Bio", favorite_quote="Dein Lieblingsspruch")
-    async def profile_edit(self, interaction: discord.Interaction, display_name: str | None = None, bio: str | None = None, favorite_quote: str | None = None) -> None:
+    @app_commands.describe(
+        display_name="Name im MIH-Profil",
+        bio="Kurze Bio",
+        favorite_quote="Dein Lieblingsspruch",
+    )
+    async def profile_edit(
+        self,
+        interaction: discord.Interaction,
+        display_name: str | None = None,
+        bio: str | None = None,
+        favorite_quote: str | None = None,
+    ) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
         if display_name is None and bio is None and favorite_quote is None:
-            return await interaction.response.send_message("ℹ️ Gib mindestens eine Sache an, die du ändern möchtest.", ephemeral=True)
-        set_profile(interaction.guild.id, interaction.user.id, display_name=display_name, bio=bio, favorite_quote=favorite_quote)
+            return await interaction.response.send_message(
+                "ℹ️ Gib mindestens eine Sache an, die du ändern möchtest.", ephemeral=True
+            )
+        set_profile(
+            interaction.guild.id,
+            interaction.user.id,
+            display_name=display_name,
+            bio=bio,
+            favorite_quote=favorite_quote,
+        )
         await interaction.response.send_message("✨ **Dein MIH-Profil wurde aktualisiert.**", ephemeral=True)
 
     @app_commands.command(name="profile_reset", description="Setzt dein MIH-Profil auf die Standardwerte zurück.")
@@ -46,9 +64,6 @@ class Profile(commands.Cog):
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
         set_profile(interaction.guild.id, interaction.user.id, display_name="", bio="", favorite_quote="")
         await interaction.response.send_message("♻️ **Dein MIH-Profil wurde zurückgesetzt.**", ephemeral=True)
-
-
-from database import get_profile
 
 
 async def setup(bot: commands.Bot) -> None:
