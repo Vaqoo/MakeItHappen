@@ -8,7 +8,6 @@ from discord.ext import commands, tasks
 from config import settings
 from database import init_db
 
-
 INSPIRATIONAL_QUOTES = (
     "Make it happen.", "Keep going. 🔥", "You got this. 💜", "Stay focused.",
     "Progress > perfection.", "Dream big. Work bigger.", "One step at a time.",
@@ -19,7 +18,6 @@ INSPIRATIONAL_QUOTES = (
     "Believe. Begin. Become.", "Your pace is still progress.", "Start now. Adjust later.",
     "Hard days build strong people.", "Keep showing up.",
 )
-
 
 class MakeItHappenBot(commands.Bot):
     def __init__(self) -> None:
@@ -35,7 +33,7 @@ class MakeItHappenBot(commands.Bot):
         init_db()
         extensions = (
             "cogs.moderation", "cogs.utility", "cogs.fun", "cogs.motivation",
-            "cogs.community", "cogs.voice", "cogs.logs", "cogs.admin",
+            "cogs.community", "cogs.voice", "cogs.logs", "cogs.admin", "cogs.profile",
         )
         for extension in extensions:
             await self.load_extension(extension)
@@ -76,7 +74,6 @@ class MakeItHappenBot(commands.Bot):
             await interaction.followup.send(message, ephemeral=True)
         else:
             await interaction.response.send_message(message, ephemeral=True)
-
 
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 bot = MakeItHappenBot()
