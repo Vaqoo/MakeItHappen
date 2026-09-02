@@ -5,6 +5,29 @@ from discord.ext import commands
 from database import get_achievements, get_profile, get_stats, set_profile
 
 
+PROFILE_COLORS = {
+    "purple": (155, 89, 182),
+    "blue": (52, 152, 219),
+    "red": (231, 76, 60),
+    "green": (46, 204, 113),
+    "orange": (230, 126, 34),
+    "pink": (233, 30, 99),
+    "yellow": (241, 196, 15),
+    "cyan": (26, 188, 156),
+}
+
+COLOR_CHOICES = [
+    app_commands.Choice(name="🟣 Lila", value="purple"),
+    app_commands.Choice(name="🔵 Blau", value="blue"),
+    app_commands.Choice(name="🔴 Rot", value="red"),
+    app_commands.Choice(name="🟢 Grün", value="green"),
+    app_commands.Choice(name="🟠 Orange", value="orange"),
+    app_commands.Choice(name="🩷 Pink", value="pink"),
+    app_commands.Choice(name="🟡 Gelb", value="yellow"),
+    app_commands.Choice(name="🩵 Cyan", value="cyan"),
+]
+
+
 class Profile(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -19,7 +42,8 @@ class Profile(commands.Cog):
         profile = get_profile(interaction.guild.id, member.id)
         achievements = get_achievements(interaction.guild.id, member.id)
         level = int(stats["xp"]) // 100 + 1
-        embed = discord.Embed(title=f"✨ {profile['display_name'] or member.display_name}'s MIH Profile", color=member.color)
+        color = discord.Color.from_rgb(*PROFILE_COLORS.get(profile["favorite_color"], PROFILE_COLORS["purple"]))
+        embed = discord.Embed(title=f"✨ {profile['display_name'] or member.display_name}'s MIH Profile", color=color)
         embed.set_thumbnail(url=member.display_avatar.url)
         if profile["bio"]:
             embed.description = profile["bio"]
@@ -35,17 +59,20 @@ class Profile(commands.Cog):
         display_name="Name im MIH-Profil",
         bio="Kurze Bio",
         favorite_quote="Dein Lieblingsspruch",
+        favorite_color="Deine Lieblingsfarbe für dein MIH-Profil",
     )
+    @app_commands.choices(favorite_color=COLOR_CHOICES)
     async def profile_edit(
         self,
         interaction: discord.Interaction,
         display_name: str | None = None,
         bio: str | None = None,
         favorite_quote: str | None = None,
+        favorite_color: app_commands.Choice[str] | None = None,
     ) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
-        if display_name is None and bio is None and favorite_quote is None:
+        if display_name is None and bio is None and favorite_quote is None and favorite_color is None:
             return await interaction.response.send_message(
                 "ℹ️ Gib mindestens eine Sache an, die du ändern möchtest.", ephemeral=True
             )
@@ -55,6 +82,7 @@ class Profile(commands.Cog):
             display_name=display_name,
             bio=bio,
             favorite_quote=favorite_quote,
+            favorite_color=favorite_color.value if favorite_color else None,
         )
         await interaction.response.send_message("✨ **Dein MIH-Profil wurde aktualisiert.**", ephemeral=True)
 
@@ -62,7 +90,7 @@ class Profile(commands.Cog):
     async def profile_reset(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
-        set_profile(interaction.guild.id, interaction.user.id, display_name="", bio="", favorite_quote="")
+        set_profile(interaction.guild.id, interaction.user.id, display_name="", bio="", favorite_quote="", favorite_color="purple")
         await interaction.response.send_message("♻️ **Dein MIH-Profil wurde zurückgesetzt.**", ephemeral=True)
 
 
