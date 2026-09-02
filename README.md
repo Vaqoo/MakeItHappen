@@ -1,132 +1,121 @@
-# MakeItHappen 🤖💜
+# MakeItHappen 🚀
 
-**MakeItHappen (MIH)** is a motivational Discord companion with serious server-management tools underneath. The goal is not to be another generic moderation bot: MIH should help people keep moving, build habits, set goals and feel supported while keeping communities safe.
+MakeItHappen (MIH) is a Discord community bot built around one idea: **turn motivation into action.**
 
-## 🧠 Motivation & support
+## 🧠 Mindset
+- `/motivate` — kurzer Motivationsboost
+- `/quote` — Quotes nach Kategorie
+- `/challenge` — kleine Challenges
+- `/daily` — tägliche Motivation + Streak + Rewards
+- `/helpme` — wenn du gerade nicht weiterweißt
+- `/mood` + `/mood_history` — Mood-Tracking
+- `/journal` + `/journal_history` — private Journal-Einträge
+- `/win` + `/wins` — kleine Erfolge festhalten
 
-- `/motivate` — quick motivation boost
-- `/quote` — motivation, focus, discipline, mindset or tough-day quotes
-- `/daily` — daily motivation + XP + streaks
-- `/challenge` — small actionable challenge
-- `/helpme` — supportive next-step advice
+## 👥 Progression & Community
+- Nachrichten geben XP (mit Cooldown gegen Spam-Farming)
+- Level-System mit Level-Up-Meldungen
+- `/stats` — Level, XP, Fortschritt, Rang und Streak
+- `/leaderboard` — Server-XP-Ranking
+- `/goal` — persönliches Ziel erstellen
+- `/goals` — offene Ziele
+- `/complete` — Ziel abschließen und Rewards bekommen
+- `/goal_delete` — Ziel löschen
+- `/achievements` — freigeschaltete Achievements
 
-## 🎯 Personal progress
+## 👤 MIH Profile
+- `/profile` — modernes MIH-Profil
+- `/profile_edit` — Name, Bio, Quote, Farbe, Titel, Banner und Showcase anpassen
+- `/profile_reset` — Profil zurücksetzen
+- `/showcase` — Achievements im Profil ausstellen
+- XP-Fortschrittsbalken, Server-Rang, Coins, Streak und Wins im Profil
 
-- `/goal` — create a goal
-- `/goals` — view open goals
-- `/complete` — complete a goal and earn XP
-- `/profile` — MIH profile, level, XP and streak
-- `/achievements` — unlocked achievements
-- Persistent SQLite storage in `data/makeithappen.db`
+## 🪙 MIH Economy
+- `/balance` — Coins anzeigen
+- `/work` — einmal pro Stunde Coins verdienen
+- `/shop` — Cosmetics kaufen
+- `/buy` — Shop-Item kaufen
+- `/inventory` — gekaufte Cosmetics
+- `/equip` — gekauften Titel ausrüsten
+- `/pay` — Coins an andere User schicken
 
-## 🔊 Temporary voice
-
-- `/setup_tempvoice` — creates a Join-to-Create system
-- `/voice_lock` — lock your temporary room
-- `/voice_unlock` — unlock it
-- Empty temporary rooms are automatically deleted
-
-## 🛡️ Moderation
-
-- `/kick`
-- `/ban`
-- `/unban`
-- `/timeout`
-- `/untimeout`
+## 🛡️ Safety & Moderation
+- `/kick`, `/ban`, `/unban`
+- `/timeout`, `/untimeout`
+- `/warn`, `/warnings`, `/clearwarns`
 - `/purge`
+- persistent Moderations-Warnungen
+- AutoMod: Invite-Links, Links, Caps, Mention-Spam und Flooding
+- Anti-Raid: Join-Burst-Erkennung mit Mod-Log-Alarm
+- umfangreiche Mod-Logs
+- `/lockdown` für Server-Notfälle
 
-## 📋 Mod & activity logs
+## 🔊 Temporary Voice
+- `/setup_tempvoice`
+- automatische temporäre Räume
+- `/voice_rename`
+- `/voice_limit`
+- `/voice_lock` / `/voice_unlock`
+- `/voice_kick`
+- `/voice_transfer`
 
-Use `/setup_logs` in the channel where logs should go. MIH can log:
+## 🌐 Server Tools
+- Welcome-System: `/setup_welcome`
+- Goodbye-System: `/setup_goodbye`
+- Suggestions: `/setup_suggestions` + `/suggest`
+- Ja/Nein-Polls: `/poll`
+- Birthday-System: `/birthday`
 
-- joins / leaves
-- message edits / deletes
-- voice joins / leaves / moves
-- nickname changes
-- role changes
-- channel creation / deletion
-- kicks / bans / unbans
-- timeouts / timeout removals
-- purges
+## 🧰 Utility & Fun
+- `/ping`
+- `/serverinfo`
+- `/userinfo`
+- `/avatar`
+- `/8ball`
+- `/coinflip`
+- `/roll`
 
-## 🚨 AutoMod
+## ⚙️ Setup
 
-Use `/setup_automod` to enable basic protection against:
+1. Python 3.12 installieren.
+2. Dependencies installieren:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. `.env.example` nach `.env` kopieren und Token/Guild-ID eintragen.
+4. Im Discord Developer Portal **Server Members Intent** und **Message Content Intent** aktivieren.
+5. Starten:
+   ```bash
+   python bot.py
+   ```
 
-- Discord invite spam
-- message flooding
+### GitHub Actions
+- `CI` prüft bei Push/PR automatisch die Python-Syntax.
+- `Run Discord Bot` kann den Bot über `workflow_dispatch` starten.
+- Der GitHub Runner ist nur temporäres Hosting und daher **kein 24/7-Produktivhosting**.
 
-Use `/automod_off` to disable it.
-
-## ⚙️ Setup requirements
-
-Because MIH listens for members, voice activity and message content, enable these intents for the bot in the Discord Developer Portal:
-
-- **Server Members Intent**
-- **Message Content Intent**
-
-The bot also needs the permissions required for the features you enable, especially **Manage Messages**, **Moderate Members**, **Manage Channels**, **Move Members**, **View Audit Log** (recommended for richer auditing), and **Send Messages / Embed Links**.
-
-## GitHub Actions test hosting
-
-The repository includes a manual GitHub Actions workflow for testing the bot. Store the bot token as the repository secret `DISCORD_TOKEN`; never commit a token.
-
-## Local setup
-
-```bash
-git clone https://github.com/Vaqoo/MakeItHappen.git
-cd MakeItHappen
-python -m venv .venv
-```
-
-Windows:
-```bash
-.venv\\Scripts\\activate
-```
-
-Linux/macOS:
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-Copy `.env.example` to `.env`:
-```env
-DISCORD_TOKEN=your_bot_token_here
-GUILD_ID=
-LOG_LEVEL=INFO
-```
-
-Start:
-```bash
-python bot.py
-```
-
-## Architecture
+## 🗂️ Architektur
 
 ```text
 MakeItHappen/
 ├── bot.py
 ├── config.py
 ├── database.py
-├── requirements.txt
-├── .env.example
 ├── cogs/
-│   ├── moderation.py
-│   ├── utility.py
-│   ├── fun.py
-│   ├── motivation.py
+│   ├── admin.py
 │   ├── community.py
-│   ├── voice.py
+│   ├── economy.py
+│   ├── fun.py
 │   ├── logs.py
-│   └── admin.py
+│   ├── moderation.py
+│   ├── motivation.py
+│   ├── profile.py
+│   ├── server.py
+│   ├── utility.py
+│   └── voice.py
 └── .github/workflows/
     ├── ci.yml
     └── bot.yml
 ```
 
-**Make it happen.** 🔥
+**Make it happen. 🔥**
