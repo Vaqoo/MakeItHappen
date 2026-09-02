@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -10,13 +12,12 @@ class Moderation(commands.Cog):
     @staticmethod
     async def _can_moderate(interaction: discord.Interaction, member: discord.Member) -> bool:
         guild = interaction.guild
-        if guild is None or interaction.user is None or not isinstance(interaction.user, discord.Member):
+        user = interaction.user
+        if guild is None or not isinstance(user, discord.Member):
             return False
-        if member == guild.owner:
+        if member == guild.owner or member == user:
             return False
-        if member == interaction.user:
-            return False
-        if member.top_role >= interaction.user.top_role:
+        if member.top_role >= user.top_role:
             return False
         bot_member = guild.me
         return bot_member is not None and member.top_role < bot_member.top_role
@@ -48,7 +49,7 @@ class Moderation(commands.Cog):
         if not await self._can_moderate(interaction, member):
             await interaction.response.send_message("❌ Dieses Mitglied kann nicht moderiert werden (Rollenhierarchie).", ephemeral=True)
             return
-        await member.timeout(discord.utils.utcnow() + discord.timedelta(minutes=minutes), reason=f"{reason} | von {interaction.user}")
+        await member.timeout(timedelta(minutes=minutes), reason=f"{reason} | von {interaction.user}")
         await interaction.response.send_message(f"⏳ **{member}** hat {minutes} Minuten Timeout bekommen.", ephemeral=True)
 
     @app_commands.command(name="purge", description="Löscht mehrere Nachrichten aus dem aktuellen Kanal.")
