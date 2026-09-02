@@ -9,15 +9,14 @@ from config import settings
 from database import init_db
 
 INSPIRATIONAL_QUOTES = (
-    "Make it happen.", "Keep going. 🔥", "You got this. 💜", "Stay focused.",
-    "Progress > perfection.", "Dream big. Work bigger.", "One step at a time.",
-    "Discipline beats motivation.", "Never stop improving.", "Trust the process.",
-    "Your time is now.", "Be better than yesterday.", "Small steps. Big results.",
-    "Focus. Execute. Repeat.", "Turn ideas into action.", "Don't quit. Adapt.",
-    "Stay hungry. Stay driven.", "Build your future.", "Consistency creates results.",
-    "Believe. Begin. Become.", "Your pace is still progress.", "Start now. Adjust later.",
-    "Hard days build strong people.", "Keep showing up.",
+    "Make it happen.", "Keep going. 🔥", "You got this. 💜", "Stay focused.", "Progress > perfection.",
+    "Dream big. Work bigger.", "One step at a time.", "Discipline beats motivation.", "Never stop improving.",
+    "Trust the process.", "Your time is now.", "Be better than yesterday.", "Small steps. Big results.",
+    "Focus. Execute. Repeat.", "Turn ideas into action.", "Don't quit. Adapt.", "Stay hungry. Stay driven.",
+    "Build your future.", "Consistency creates results.", "Believe. Begin. Become.", "Your pace is still progress.",
+    "Start now. Adjust later.", "Hard days build strong people.", "Keep showing up.",
 )
+
 
 class MakeItHappenBot(commands.Bot):
     def __init__(self) -> None:
@@ -32,8 +31,8 @@ class MakeItHappenBot(commands.Bot):
     async def setup_hook(self) -> None:
         init_db()
         extensions = (
-            "cogs.moderation", "cogs.utility", "cogs.fun", "cogs.motivation",
-            "cogs.community", "cogs.voice", "cogs.logs", "cogs.admin", "cogs.profile",
+            "cogs.moderation", "cogs.utility", "cogs.fun", "cogs.motivation", "cogs.community",
+            "cogs.voice", "cogs.logs", "cogs.admin", "cogs.profile", "cogs.economy", "cogs.server",
         )
         for extension in extensions:
             await self.load_extension(extension)
@@ -69,11 +68,17 @@ class MakeItHappenBot(commands.Bot):
 
     async def on_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
         logging.error("Slash command error: %s", error)
-        message = "❌ Bei der Ausführung des Befehls ist ein Fehler aufgetreten."
+        if isinstance(error, app_commands.MissingPermissions):
+            message = "❌ Dafür fehlen dir die nötigen Berechtigungen."
+        elif isinstance(error, app_commands.CommandOnCooldown):
+            message = "⏳ Dieser Befehl ist gerade im Cooldown."
+        else:
+            message = "❌ Bei der Ausführung des Befehls ist ein Fehler aufgetreten."
         if interaction.response.is_done():
             await interaction.followup.send(message, ephemeral=True)
         else:
             await interaction.response.send_message(message, ephemeral=True)
+
 
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO), format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 bot = MakeItHappenBot()
