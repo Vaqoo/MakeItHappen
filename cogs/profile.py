@@ -36,6 +36,9 @@ class Profile(commands.Cog):
     async def profile(self, interaction: discord.Interaction, member: discord.Member | None = None) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
+
+        # Acknowledge immediately so database/network latency cannot make Discord expire the interaction.
+        await interaction.response.defer()
         member = member or interaction.user
         stats = get_stats(interaction.guild.id, member.id)
         profile = get_profile(interaction.guild.id, member.id)
@@ -68,7 +71,7 @@ class Profile(commands.Cog):
         if wins:
             embed.add_field(name="🏅 Recent Wins", value="\n".join(f"• {row['win'][:120]}" for row in wins), inline=False)
         embed.set_footer(text="MakeItHappen • Believe. Begin. Become.")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="profile_edit", description="Passe dein MakeItHappen-Profil an.")
     @app_commands.describe(
@@ -94,30 +97,34 @@ class Profile(commands.Cog):
             return await interaction.response.send_message("ℹ️ Gib mindestens eine Sache an, die du ändern möchtest.", ephemeral=True)
         if banner_url and not banner_url.startswith(("http://", "https://")):
             return await interaction.response.send_message("❌ Die Banner-URL muss mit http:// oder https:// beginnen.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
         set_profile(
             interaction.guild.id, interaction.user.id, display_name=display_name, bio=bio,
             favorite_quote=favorite_quote, favorite_color=favorite_color.value if favorite_color else None,
             title=title, banner_url=banner_url, showcase=showcase,
         )
-        await interaction.response.send_message("✨ **Dein MIH-Profil wurde aktualisiert.**", ephemeral=True)
+        await interaction.followup.send("✨ **Dein MIH-Profil wurde aktualisiert.**", ephemeral=True)
 
     @app_commands.command(name="profile_reset", description="Setzt dein MIH-Profil auf die Standardwerte zurück.")
     async def profile_reset(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         set_profile(interaction.guild.id, interaction.user.id, display_name="", bio="", favorite_quote="", favorite_color="purple", title="", banner_url="", showcase="")
-        await interaction.response.send_message("♻️ **Dein MIH-Profil wurde zurückgesetzt.**", ephemeral=True)
+        await interaction.followup.send("♻️ **Dein MIH-Profil wurde zurückgesetzt.**", ephemeral=True)
 
     @app_commands.command(name="showcase", description="Zeigt deine ausgewählten Achievements.")
     async def showcase(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         rows = get_achievements(interaction.guild.id, interaction.user.id)
         if not rows:
-            return await interaction.response.send_message("✨ Du hast noch keine Achievements zum Ausstellen.", ephemeral=True)
+            return await interaction.followup.send("✨ Du hast noch keine Achievements zum Ausstellen.", ephemeral=True)
         selected = ", ".join(row["achievement"] for row in rows[:5])
         set_profile(interaction.guild.id, interaction.user.id, showcase=selected)
-        await interaction.response.send_message("✨ Deine ersten fünf Achievements sind jetzt im Profil ausgestellt.", ephemeral=True)
+        await interaction.followup.send("✨ Deine ersten fünf Achievements sind jetzt im Profil ausgestellt.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
