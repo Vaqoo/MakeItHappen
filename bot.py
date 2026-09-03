@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from config import settings
-from database import init_db
+from database import ensure_guild, init_db
 
 INSPIRATIONAL_QUOTES = (
     "Make it happen.", "Keep going. 🔥", "You got this. 💜", "Stay focused.", "Progress > perfection.",
@@ -50,7 +50,9 @@ class MakeItHappenBot(commands.Bot):
 
     async def on_ready(self) -> None:
         if self.user:
-            logging.info("Logged in as %s (%s)", self.user, self.user.id)
+            for guild in self.guilds:
+                ensure_guild(guild.id)
+            logging.info("Logged in as %s (%s) in %d guild(s)", self.user, self.user.id, len(self.guilds))
 
     @tasks.loop(minutes=3)
     async def rotate_presence(self) -> None:
