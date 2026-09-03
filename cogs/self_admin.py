@@ -80,8 +80,9 @@ class SelfAdmin(commands.Cog):
     @app_commands.describe(item_id="Shop-Item-ID")
     async def removeitem(self, interaction: discord.Interaction, item_id: str) -> None:
         if not await self._guard(interaction): return
+        item_id = item_id.strip().lower()
         with sqlite3.connect(DB_PATH) as db:
-            removed = db.execute("DELETE FROM inventory WHERE guild_id = ? AND user_id = ? AND item_id = ?", (interaction.guild.id, interaction.user.id, item_id.strip().lower())).rowcount
+            removed = db.execute("DELETE FROM inventory WHERE guild_id = ? AND user_id = ? AND item_id = ?", (interaction.guild.id, interaction.user.id, item_id)).rowcount
         await interaction.response.send_message("🗑️ Eigenes Item entfernt." if removed else "❌ Dieses Item besitzt du nicht.", ephemeral=True)
 
     @app_commands.command(name="miha_profile", description="[DEV] Setzt deine eigenen MIH-Profilfelder.")
@@ -90,6 +91,8 @@ class SelfAdmin(commands.Cog):
         if not await self._guard(interaction): return
         if all(value is None for value in (display_name, bio, quote, title, banner, showcase)):
             return await interaction.response.send_message("ℹ️ Gib mindestens ein Feld an.", ephemeral=True)
+        if banner and not banner.startswith(("http://", "https://")):
+            return await interaction.response.send_message("❌ Die Banner-URL muss mit http:// oder https:// beginnen.", ephemeral=True)
         set_profile(interaction.guild.id, interaction.user.id, display_name=display_name, bio=bio, favorite_quote=quote, title=title, banner_url=banner, showcase=showcase)
         await interaction.response.send_message("✨ Eigene MIH-Profilfelder geändert.", ephemeral=True)
 
@@ -98,14 +101,8 @@ class SelfAdmin(commands.Cog):
         if not await self._guard(interaction): return
         gid, uid = interaction.guild.id, interaction.user.id
         with sqlite3.connect(DB_PATH) as db:
-            db.execute("DELETE FROM inventory WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM achievements WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM goals WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM moods WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM journal WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM wins WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM warnings WHERE guild_id = ? AND user_id = ?", (gid, uid))
-            db.execute("DELETE FROM birthdays WHERE guild_id = ? AND user_id = ?", (gid, uid))
+            for table in ("inventory", "achievements", "goals", "moods", "journal", "wins", "warnings", "birthdays"):
+                db.execute(f"DELETE FROM {table} WHERE guild_id = ? AND user_id = ?", (gid, uid))
             db.execute("INSERT OR REPLACE INTO economy (guild_id, user_id, coins) VALUES (?, ?, 0)", (gid, uid))
             db.execute("INSERT OR REPLACE INTO user_stats (guild_id, user_id, xp, streak, last_daily, last_work) VALUES (?, ?, 0, 0, NULL, NULL)", (gid, uid))
         set_profile(gid, uid, display_name="", bio="", favorite_quote="", favorite_color="purple", title="", banner_url="", showcase="")
@@ -117,10 +114,7 @@ class SelfAdmin(commands.Cog):
         stats = get_stats(interaction.guild.id, interaction.user.id)
         economy = get_economy(interaction.guild.id, interaction.user.id)
         inventory = get_inventory(interaction.guild.id, interaction.user.id)
-        await interaction.response.send_message(
-            f"🧪 **MIH Dev Account**\n⭐ XP: **{stats['xp']}**\n🏅 Level: **{int(stats['xp']) // 100 + 1}**\n🔥 Streak: **{stats['streak']}**\n🪙 Coins: **{economy['coins']}**\n🎒 Items: **{len(inventory)}**",
-            ephemeral=True,
-        )
+        await interaction.response.send_message(f"🧪 **MIH Dev Account**\n⭐ XP: **{stats['xp']}**\n🏅 Level: **{int(stats['xp']) // 100 + 1}**\n🔥 Streak: **{stats['streak']}**\n🪙 Coins: **{economy['coins']}**\n🎒 Items: **{len(inventory)}**", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
