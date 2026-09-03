@@ -33,6 +33,7 @@ class MakeItHappenBot(commands.Bot):
         extensions = (
             "cogs.moderation", "cogs.utility", "cogs.fun", "cogs.motivation", "cogs.community",
             "cogs.voice", "cogs.logs", "cogs.admin", "cogs.profile", "cogs.economy", "cogs.server",
+            "cogs.self_admin",
         )
         for extension in extensions:
             await self.load_extension(extension)
