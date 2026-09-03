@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MakeItHappen</title>
+  <meta name="description" content="MakeItHappen — Mindset, Community & Progress.">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="bg-orb orb-a"></div><div class="bg-orb orb-b"></div>
+  <header class="nav">
+    <a class="brand" href="/"><span class="logo">MIH</span><span>MAKE IT HAPPEN</span></a>
+    <a class="login" href="/auth/login">Login with Discord</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow">FOCUS <b>•</b> DISCIPLINE <b>•</b> SUCCESS</div>
+      <h1>Turn your progress<br><span>into a profile.</span></h1>
+      <p>Dein MakeItHappen-Profil. Deine Stats. Deine Achievements. Alles an einem Ort.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="/auth/login">Mit Discord starten ↗</a>
+        <a class="button ghost" href="#profile">Profil ansehen</a>
+      </div>
+    </section>
+
+    <section id="profile" class="profile-section">
+      <div class="section-head"><div><span class="eyebrow">MIH PROFILE</span><h2>Show what you made happen.</h2></div><div class="status">● LIVE DATA</div></div>
+      <div class="profile-card" id="profile-card">
+        <div class="banner" id="banner"><div class="banner-grid"></div></div>
+        <div class="profile-main">
+          <div class="avatar" id="avatar">M</div>
+          <div class="identity"><div class="name" id="name">Dein MIH Profil</div><div class="title" id="title">MakeItHappen Member</div></div>
+          <div class="level"><span>LEVEL</span><strong id="level">1</strong><small><b id="xp">0</b> XP</small></div>
+        </div>
+        <div class="bio" id="bio">Logge dich mit Discord ein, um dein Profil zu laden.</div>
+        <div class="stats">
+          <div><span>🔥 STREAK</span><strong id="streak">0</strong><small>Tage</small></div>
+          <div><span>🪙 COINS</span><strong id="coins">0</strong><small>MIH Coins</small></div>
+          <div><span>🏅 RANK</span><strong id="rank">—</strong><small>Server</small></div>
+          <div><span>🏆 ACHIEVEMENTS</span><strong id="achievements">0</strong><small>unlocked</small></div>
+        </div>
+        <div class="progress-wrap"><div class="progress-label"><span>LEVEL PROGRESS</span><b id="progress-text">0 / 100 XP</b></div><div class="progress"><i id="progress"></i></div></div>
+        <div class="lower-grid">
+          <div class="panel"><div class="panel-title">💭 FAVORITE QUOTE</div><p id="quote">“Make it happen.”</p></div>
+          <div class="panel"><div class="panel-title">✨ SHOWCASE</div><p id="showcase">Noch nichts ausgestellt.</p></div>
+        </div>
+        <div class="panel wins"><div class="panel-title">🏅 RECENT WINS</div><ul id="wins"><li>Deine nächsten Wins erscheinen hier.</li></ul></div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div><span>01</span><h3>Synced</h3><p>Bot und Website greifen auf dieselben MIH-Daten zu.</p></div>
+      <div><span>02</span><h3>Personal</h3><p>Banner, Farben, Titel, Bio, Showcase und Fortschritt gehören dir.</p></div>
+      <div><span>03</span><h3>Community</h3><p>Leaderboards, Achievements und Stats werden zur öffentlichen MIH-Identität.</p></div>
+    </section>
+  </main>
+  <footer>MAKE IT HAPPEN <span>•</span> BELIEVE. BEGIN. BECOME.</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
