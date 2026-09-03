@@ -6,6 +6,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
@@ -29,6 +30,7 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback")
 DISCORD_API = "https://discord.com/api/v10"
+OAUTH_STATE = URLSafeTimedSerializer(WEB_SECRET, salt="mih-oauth-state")
 
 
 def level_from_xp(xp: int) -> int:
@@ -114,22 +116,32 @@ async def edit_my_profile(request: Request, guild_id: int) -> dict:
 async def login(request: Request):
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
         raise HTTPException(503, "Discord OAuth2 ist noch nicht konfiguriert.")
-    state = secrets.token_urlsafe(32)
-    request.session["oauth_state"] = state
+
+    # The state is signed with the web secret instead of being stored only in
+    # the browser session. This survives the Discord -> Render redirect even
+    # when the session cookie is not available on the callback request.
+    state = OAUTH_STATE.dumps({"nonce": secrets.token_urlsafe(24)})
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "redirect_uri": DISCORD_REDIRECT_URI,
         "response_type": "code",
         "scope": "identify guilds",
+        "state": state,
     }
     return RedirectResponse("https://discord.com/oauth2/authorize?" + urlencode(params))
 
 
 @app.get("/auth/callback")
 async def callback(request: Request, code: str = "", state: str = ""):
-    expected_state = request.session.pop("oauth_state", "")
-    if not code or not expected_state or not secrets.compare_digest(state, expected_state):
+    if not code or not state:
+        raise HTTPException(400, "Discord-OAuth2 Callback ist unvollständig.")
+    try:
+        OAUTH_STATE.loads(state, max_age=600)
+    except SignatureExpired:
+        raise HTTPException(400, "Der Discord-OAuth2-Login ist abgelaufen. Bitte erneut einloggen.")
+    except BadSignature:
         raise HTTPException(400, "Ungültiger OAuth2-Status.")
+
     async with httpx.AsyncClient(timeout=10) as client:
         token_response = await client.post(
             f"{DISCORD_API}/oauth2/token",
