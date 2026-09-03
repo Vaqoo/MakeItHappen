@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
-from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
+from database import _connect, get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
 
 app = FastAPI(title="MakeItHappen Web")
 init_db()
@@ -35,6 +35,21 @@ OAUTH_STATE = URLSafeTimedSerializer(WEB_SECRET, salt="mih-oauth-state")
 
 def level_from_xp(xp: int) -> int:
     return xp // 100 + 1
+
+
+def configured_guild_ids() -> set[int]:
+    """Return guilds initialized by the bot, without creating rows for them."""
+    with _connect() as db:
+        rows = db.execute("SELECT guild_id FROM guild_config").fetchall()
+    return {int(row["guild_id"]) for row in rows}
+
+
+def session_guilds(request: Request) -> list[dict]:
+    return request.session.get("discord_guilds", [])
+
+
+def user_has_guild(request: Request, guild_id: int) -> bool:
+    return any(int(guild["id"]) == guild_id for guild in session_guilds(request))
 
 
 def serialize_profile(guild_id: int, user_id: int) -> dict:
@@ -72,6 +87,15 @@ def require_user(request: Request) -> dict:
     return user
 
 
+def require_user_guild(request: Request, guild_id: int) -> dict:
+    user = require_user(request)
+    if not user_has_guild(request, guild_id):
+        raise HTTPException(403, "Du bist kein Mitglied dieses Discord-Servers.")
+    if guild_id not in configured_guild_ids():
+        raise HTTPException(404, "MakeItHappen ist auf diesem Discord-Server noch nicht initialisiert.")
+    return user
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
     with open("web/static/index.html", encoding="utf-8") as file:
@@ -86,18 +110,19 @@ async def profile(guild_id: int, user_id: int) -> dict:
 @app.get("/api/my-guilds")
 async def my_guilds(request: Request) -> list[dict]:
     require_user(request)
-    return request.session.get("discord_guilds", [])
+    configured = configured_guild_ids()
+    return [guild for guild in session_guilds(request) if int(guild["id"]) in configured]
 
 
 @app.get("/api/my-profile/{guild_id}")
 async def my_profile(request: Request, guild_id: int) -> dict:
-    user = require_user(request)
+    user = require_user_guild(request, guild_id)
     return serialize_profile(guild_id, int(user["id"]))
 
 
 @app.patch("/api/my-profile/{guild_id}")
 async def edit_my_profile(request: Request, guild_id: int) -> dict:
-    user = require_user(request)
+    user = require_user_guild(request, guild_id)
     payload = await request.json()
     allowed = {"display_name", "bio", "favorite_quote", "favorite_color", "title", "banner_url", "showcase"}
     unknown = set(payload) - allowed
@@ -117,9 +142,6 @@ async def login(request: Request):
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
         raise HTTPException(503, "Discord OAuth2 ist noch nicht konfiguriert.")
 
-    # The state is signed with the web secret instead of being stored only in
-    # the browser session. This survives the Discord -> Render redirect even
-    # when the session cookie is not available on the callback request.
     state = OAUTH_STATE.dumps({"nonce": secrets.token_urlsafe(24)})
     params = {
         "client_id": DISCORD_CLIENT_ID,
@@ -161,10 +183,17 @@ async def callback(request: Request, code: str = "", state: str = ""):
         user_response.raise_for_status()
         guilds_response = await client.get(f"{DISCORD_API}/users/@me/guilds", headers=headers)
         guilds_response.raise_for_status()
+        discord_guilds = guilds_response.json()
+        configured = configured_guild_ids()
+        request.session.clear()
         request.session["discord_user"] = user_response.json()
+        # Only keep servers where MIH is actually initialized. This keeps the
+        # signed session cookie small enough for mobile browsers and avoids
+        # selecting an unrelated Discord server as the default profile.
         request.session["discord_guilds"] = [
             {"id": guild["id"], "name": guild["name"], "icon": guild.get("icon")}
-            for guild in guilds_response.json()
+            for guild in discord_guilds
+            if int(guild["id"]) in configured
         ]
     return RedirectResponse("/")
 
