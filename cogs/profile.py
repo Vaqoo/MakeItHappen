@@ -2,9 +2,10 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from database import get_achievements, get_economy, get_inventory, get_profile, get_rank, get_stats, get_wins, set_profile
+from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, set_profile
 
 
+DEV_USER_ID = 1283785169664213101
 PROFILE_COLORS = {
     "purple": (155, 89, 182), "blue": (52, 152, 219), "red": (231, 76, 60), "green": (46, 204, 113),
     "orange": (230, 126, 34), "pink": (233, 30, 99), "yellow": (241, 196, 15), "cyan": (26, 188, 156),
@@ -46,13 +47,16 @@ class Profile(commands.Cog):
         color = discord.Color.from_rgb(*PROFILE_COLORS.get(profile["favorite_color"], PROFILE_COLORS["purple"]))
         title = profile["title"] or "MakeItHappen Member"
         display = profile["display_name"] or member.display_name
-        embed = discord.Embed(title=f"✨ {display}", description=profile["bio"] or "*Make it happen.*", color=color)
+        dev_badge = " 🛠️ DEV" if member.id == DEV_USER_ID else ""
+        embed = discord.Embed(title=f"✨ {display}{dev_badge}", description=profile["bio"] or "*Make it happen.*", color=color)
         embed.set_thumbnail(url=member.display_avatar.url)
         if profile["banner_url"].startswith(("http://", "https://")):
             embed.set_image(url=profile["banner_url"])
         embed.add_field(name="🏷️ Title", value=title, inline=True)
         embed.add_field(name="⭐ Level", value=f"**{level_from_xp(xp)}** · {xp} XP", inline=True)
         embed.add_field(name="🏅 Server Rank", value=f"**#{rank}**", inline=True)
+        if member.id == DEV_USER_ID:
+            embed.add_field(name="🛠️ MakeItHappen Dev", value="**Official Developer** • Project Owner", inline=False)
         embed.add_field(name="📈 Progress", value=f"`{bar(xp)}` **{xp % 100}/100**", inline=False)
         embed.add_field(name="🔥 Streak", value=f"{stats['streak']} Tage", inline=True)
         embed.add_field(name="🏆 Achievements", value=str(len(achievements)), inline=True)
