@@ -1,8 +1,5 @@
-import hashlib
-import hmac
 import os
 import secrets
-import time
 from urllib.parse import urlencode
 
 import httpx
@@ -14,12 +11,11 @@ from starlette.middleware.sessions import SessionMiddleware
 from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
 
 app = FastAPI(title="MakeItHappen Web")
+init_db()
+
 WEB_SECRET = os.getenv("WEB_SECRET_KEY")
 if not WEB_SECRET:
     raise RuntimeError("WEB_SECRET_KEY muss gesetzt sein.")
-
-init_db()
-
 app.add_middleware(
     SessionMiddleware,
     secret_key=WEB_SECRET,
@@ -33,26 +29,6 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback")
 DISCORD_API = "https://discord.com/api/v10"
-OAUTH_STATE_MAX_AGE = 10 * 60
-
-
-def make_oauth_state() -> str:
-    payload = f"{int(time.time())}.{secrets.token_urlsafe(32)}"
-    signature = hmac.new(WEB_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}.{signature}"
-
-
-def verify_oauth_state(state: str) -> bool:
-    try:
-        timestamp, nonce, signature = state.split(".", 2)
-        payload = f"{timestamp}.{nonce}"
-        issued_at = int(timestamp)
-    except (ValueError, TypeError):
-        return False
-    if abs(time.time() - issued_at) > OAUTH_STATE_MAX_AGE:
-        return False
-    expected = hmac.new(WEB_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(signature, expected)
 
 
 def level_from_xp(xp: int) -> int:
@@ -105,6 +81,12 @@ async def profile(guild_id: int, user_id: int) -> dict:
     return serialize_profile(guild_id, user_id)
 
 
+@app.get("/api/my-guilds")
+async def my_guilds(request: Request) -> list[dict]:
+    require_user(request)
+    return request.session.get("discord_guilds", [])
+
+
 @app.get("/api/my-profile/{guild_id}")
 async def my_profile(request: Request, guild_id: int) -> dict:
     user = require_user(request)
@@ -132,21 +114,22 @@ async def edit_my_profile(request: Request, guild_id: int) -> dict:
 async def login(request: Request):
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
         raise HTTPException(503, "Discord OAuth2 ist noch nicht konfiguriert.")
-    state = make_oauth_state()
+    state = secrets.token_urlsafe(32)
+    request.session["oauth_state"] = state
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "redirect_uri": DISCORD_REDIRECT_URI,
         "response_type": "code",
-        "scope": "identify",
-        "state": state,
+        "scope": "identify guilds",
     }
     return RedirectResponse("https://discord.com/oauth2/authorize?" + urlencode(params))
 
 
 @app.get("/auth/callback")
 async def callback(request: Request, code: str = "", state: str = ""):
-    if not code or not state or not verify_oauth_state(state):
-        raise HTTPException(400, "Ungültiger oder abgelaufener OAuth2-Status.")
+    expected_state = request.session.pop("oauth_state", "")
+    if not code or not expected_state or not secrets.compare_digest(state, expected_state):
+        raise HTTPException(400, "Ungültiger OAuth2-Status.")
     async with httpx.AsyncClient(timeout=10) as client:
         token_response = await client.post(
             f"{DISCORD_API}/oauth2/token",
@@ -161,9 +144,16 @@ async def callback(request: Request, code: str = "", state: str = ""):
         )
         token_response.raise_for_status()
         token = token_response.json()["access_token"]
-        user_response = await client.get(f"{DISCORD_API}/users/@me", headers={"Authorization": f"Bearer {token}"})
+        headers = {"Authorization": f"Bearer {token}"}
+        user_response = await client.get(f"{DISCORD_API}/users/@me", headers=headers)
         user_response.raise_for_status()
+        guilds_response = await client.get(f"{DISCORD_API}/users/@me/guilds", headers=headers)
+        guilds_response.raise_for_status()
         request.session["discord_user"] = user_response.json()
+        request.session["discord_guilds"] = [
+            {"id": guild["id"], "name": guild["name"], "icon": guild.get("icon")}
+            for guild in guilds_response.json()
+        ]
     return RedirectResponse("/")
 
 
