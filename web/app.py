@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 import os
 import secrets
+import time
 from urllib.parse import urlencode
 
 import httpx
@@ -8,12 +11,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, set_profile
+from database import get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
 
 app = FastAPI(title="MakeItHappen Web")
 WEB_SECRET = os.getenv("WEB_SECRET_KEY")
 if not WEB_SECRET:
     raise RuntimeError("WEB_SECRET_KEY muss gesetzt sein.")
+
+init_db()
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=WEB_SECRET,
@@ -27,6 +33,26 @@ DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_REDIRECT_URI = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8000/auth/callback")
 DISCORD_API = "https://discord.com/api/v10"
+OAUTH_STATE_MAX_AGE = 10 * 60
+
+
+def make_oauth_state() -> str:
+    payload = f"{int(time.time())}.{secrets.token_urlsafe(32)}"
+    signature = hmac.new(WEB_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def verify_oauth_state(state: str) -> bool:
+    try:
+        timestamp, nonce, signature = state.split(".", 2)
+        payload = f"{timestamp}.{nonce}"
+        issued_at = int(timestamp)
+    except (ValueError, TypeError):
+        return False
+    if abs(time.time() - issued_at) > OAUTH_STATE_MAX_AGE:
+        return False
+    expected = hmac.new(WEB_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, expected)
 
 
 def level_from_xp(xp: int) -> int:
@@ -106,22 +132,21 @@ async def edit_my_profile(request: Request, guild_id: int) -> dict:
 async def login(request: Request):
     if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
         raise HTTPException(503, "Discord OAuth2 ist noch nicht konfiguriert.")
-    state = secrets.token_urlsafe(32)
-    request.session["oauth_state"] = state
+    state = make_oauth_state()
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "redirect_uri": DISCORD_REDIRECT_URI,
         "response_type": "code",
         "scope": "identify",
+        "state": state,
     }
     return RedirectResponse("https://discord.com/oauth2/authorize?" + urlencode(params))
 
 
 @app.get("/auth/callback")
 async def callback(request: Request, code: str = "", state: str = ""):
-    expected_state = request.session.pop("oauth_state", "")
-    if not code or not expected_state or not secrets.compare_digest(state, expected_state):
-        raise HTTPException(400, "Ungültiger OAuth2-Status.")
+    if not code or not state or not verify_oauth_state(state):
+        raise HTTPException(400, "Ungültiger oder abgelaufener OAuth2-Status.")
     async with httpx.AsyncClient(timeout=10) as client:
         token_response = await client.post(
             f"{DISCORD_API}/oauth2/token",
