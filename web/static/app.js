@@ -1,11 +1,55 @@
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-const guildId = params.get('guild');
+let guildId = params.get('guild');
 
 async function api(url, options = {}) {
   const response = await fetch(url, { credentials: 'same-origin', ...options });
   if (!response.ok) throw new Error(await response.text());
   return response.json();
+}
+
+function renderGuildPicker(guilds) {
+  let picker = $('guild-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'guild-picker';
+    picker.style.margin = '0 0 18px';
+    const profile = $('profile');
+    profile?.parentElement?.insertBefore(picker, profile);
+  }
+  picker.replaceChildren();
+  if (!guilds.length) {
+    const text = document.createElement('p');
+    text.textContent = 'Du bist in keinem Discord-Server verfügbar, den MakeItHappen hier laden kann.';
+    picker.appendChild(text);
+    return;
+  }
+  const label = document.createElement('label');
+  label.textContent = 'Server auswählen';
+  label.style.display = 'block';
+  label.style.marginBottom = '8px';
+  label.style.fontWeight = '700';
+  const select = document.createElement('select');
+  select.id = 'guild-select';
+  select.style.width = '100%';
+  select.style.padding = '12px';
+  select.style.borderRadius = '12px';
+  select.style.background = 'rgba(255,255,255,.04)';
+  select.style.color = 'inherit';
+  select.style.border = '1px solid rgba(255,255,255,.12)';
+  guilds.forEach((guild) => {
+    const option = document.createElement('option');
+    option.value = guild.id;
+    option.textContent = guild.name;
+    option.selected = guild.id === guildId;
+    select.appendChild(option);
+  });
+  select.addEventListener('change', () => {
+    const next = new URL(location.href);
+    next.searchParams.set('guild', select.value);
+    location.href = next.toString();
+  });
+  picker.append(label, select);
 }
 
 function renderProfile(profile, user) {
@@ -57,8 +101,18 @@ async function loadMe() {
   const user = data.user;
   login.textContent = 'Mein Profil';
   login.href = '#profile';
+
+  const guilds = await api('/api/my-guilds');
+  if (!guildId && guilds.length) {
+    guildId = guilds[0].id;
+    const next = new URL(location.href);
+    next.searchParams.set('guild', guildId);
+    history.replaceState({}, '', next.toString());
+  }
+  renderGuildPicker(guilds);
+
   if (!guildId) {
-    $('bio').textContent = 'Füge ?guild=DEINE_SERVER_ID an die URL an, um dein Server-Profil zu laden.';
+    $('bio').textContent = 'Kein Discord-Server für dein Profil gefunden.';
     return;
   }
   try {
