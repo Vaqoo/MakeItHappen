@@ -12,11 +12,11 @@ from database import (
     add_win,
     add_xp,
     award,
+    claim_daily,
     get_journal,
     get_moods,
     get_stats,
     get_wins,
-    set_daily,
 )
 
 
@@ -80,14 +80,11 @@ class Motivation(commands.Cog):
     async def daily(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
-        stats = get_stats(interaction.guild.id, interaction.user.id)
         today = date.today()
-        last = stats["last_daily"]
-        if last == today.isoformat():
+        streak = claim_daily(interaction.guild.id, interaction.user.id, today.isoformat(), (today - timedelta(days=1)).isoformat())
+        if streak is None:
+            stats = get_stats(interaction.guild.id, interaction.user.id)
             return await interaction.response.send_message(f"💜 Du hast dein Daily heute schon abgeholt. Streak: **{stats['streak']}** Tage.", ephemeral=True)
-        streak = int(stats["streak"] or 0)
-        streak = streak + 1 if last == (today - timedelta(days=1)).isoformat() else 1
-        set_daily(interaction.guild.id, interaction.user.id, today.isoformat(), streak)
         xp = add_xp(interaction.guild.id, interaction.user.id, 25)
         coins = add_coins(interaction.guild.id, interaction.user.id, 20)
         unlocked = []
