@@ -1,5 +1,6 @@
 import random
 import re
+import sqlite3
 import time
 
 import discord
@@ -29,7 +30,7 @@ class Community(commands.Cog):
         self.xp_cooldowns: dict[tuple[int, int], float] = {}
         self.recent_messages: dict[tuple[int, int], list[float]] = {}
 
-    def _should_skip_xp_for_automod(self, message: discord.Message, config: discord.Row) -> bool:
+    def _should_skip_xp_for_automod(self, message: discord.Message, config: sqlite3.Row) -> bool:
         if not config["automod_enabled"]:
             return False
         now = time.monotonic()
