@@ -1,23 +1,16 @@
 import random
+import re
 import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from database import (
-    add_coins,
-    add_goal,
-    add_xp,
-    award,
-    complete_goal,
-    delete_goal,
-    get_achievements,
-    get_goals,
-    get_leaderboard,
-    get_rank,
-    get_stats,
-)
+from database import add_coins, add_goal, add_xp, award, complete_goal, delete_goal, get_achievements, get_config, get_goals, get_leaderboard, get_rank, get_stats
+
+
+INVITE_RE = re.compile(r"(?:discord\.gg|discord(?:app)?\.com/invite)/[A-Za-z0-9-]+", re.I)
+URL_RE = re.compile(r"https?://\S+", re.I)
 
 
 def level_from_xp(xp: int) -> int:
@@ -34,6 +27,24 @@ class Community(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.xp_cooldowns: dict[tuple[int, int], float] = {}
+        self.recent_messages: dict[tuple[int, int], list[float]] = {}
+
+    def _should_skip_xp_for_automod(self, message: discord.Message, config: discord.Row) -> bool:
+        if not config["automod_enabled"]:
+            return False
+        now = time.monotonic()
+        key = (message.guild.id, message.author.id)
+        history = [t for t in self.recent_messages.get(key, []) if now - t < 8]
+        history.append(now)
+        self.recent_messages[key] = history
+        content = message.content
+        invite = bool(config["automod_invites"]) and bool(INVITE_RE.search(content))
+        links = bool(config["automod_links"]) and bool(URL_RE.search(content))
+        letters = [c for c in content if c.isalpha()]
+        caps = bool(config["automod_caps"]) and len(content) >= 12 and sum(c.isupper() for c in letters) / max(1, len(letters)) >= 0.8
+        mentions = bool(config["automod_mentions"]) and len(message.mentions) >= 5
+        flood = len(history) >= 6
+        return any((invite, links, caps, mentions, flood))
 
     async def _reward_xp(self, guild_id: int, user_id: int, amount: int) -> tuple[int, int, list[str]]:
         before = get_stats(guild_id, user_id)
@@ -51,7 +62,10 @@ class Community(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        if not message.guild or message.author.bot:
+        if not message.guild or message.author.bot or not isinstance(message.author, discord.Member):
+            return
+        config = get_config(message.guild.id)
+        if self._should_skip_xp_for_automod(message, config):
             return
         key = (message.guild.id, message.author.id)
         now = time.monotonic()
@@ -62,10 +76,7 @@ class Community(commands.Cog):
         add_coins(message.guild.id, message.author.id, random.randint(1, 4))
         if unlocked and level > 1:
             try:
-                await message.channel.send(
-                    f"✨ {message.author.mention} **Level Up!** Du bist jetzt Level **{level}**!\n" + " · ".join(unlocked),
-                    delete_after=8,
-                )
+                await message.channel.send(f"✨ {message.author.mention} **Level Up!** Du bist jetzt Level **{level}**!\n" + " · ".join(unlocked), delete_after=8)
             except discord.HTTPException:
                 pass
 
@@ -148,9 +159,7 @@ class Community(commands.Cog):
         xp = int(stats["xp"])
         level = level_from_xp(xp)
         rank = get_rank(interaction.guild.id, interaction.user.id)
-        await interaction.response.send_message(
-            f"📈 **Deine MIH Stats**\n\n⭐ Level **{level}**\n`{progress_bar(xp)}` **{xp % 100}/100 XP**\n🏅 Server-Rang **#{rank}**\n🔥 Streak **{stats['streak']} Tage**"
-        )
+        await interaction.response.send_message(f"📈 **Deine MIH Stats**\n\n⭐ Level **{level}**\n`{progress_bar(xp)}` **{xp % 100}/100 XP**\n🏅 Server-Rang **#{rank}**\n🔥 Streak **{stats['streak']} Tage**")
 
 
 async def setup(bot: commands.Bot) -> None:
