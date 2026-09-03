@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from database import add_coins, add_xp, buy_item, get_economy, get_inventory, get_profile, get_stats, set_profile, set_last_work
+from database import add_coins, add_xp, buy_item, get_economy, get_inventory, get_profile, get_stats, set_profile, claim_work, transfer_coins
 
 
 SHOP = {
@@ -35,6 +35,7 @@ class Economy(commands.Cog):
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
         stats = get_stats(interaction.guild.id, interaction.user.id)
         now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(hours=1)).isoformat()
         if stats["last_work"]:
             try:
                 last = datetime.fromisoformat(str(stats["last_work"]).replace("Z", "+00:00"))
@@ -44,8 +45,15 @@ class Economy(commands.Cog):
                     return await interaction.response.send_message(f"⏳ Du kannst `/work` in **{minutes} Minuten** wieder benutzen.", ephemeral=True)
             except ValueError:
                 pass
+        if not claim_work(interaction.guild.id, interaction.user.id, now.isoformat(), cutoff):
+            latest = get_stats(interaction.guild.id, interaction.user.id)
+            try:
+                last = datetime.fromisoformat(str(latest["last_work"]).replace("Z", "+00:00"))
+                minutes = max(1, int((timedelta(hours=1) - (now - last)).total_seconds() // 60))
+            except (ValueError, TypeError):
+                minutes = 1
+            return await interaction.response.send_message(f"⏳ Du kannst `/work` in etwa **{minutes} Minuten** wieder benutzen.", ephemeral=True)
         reward = 80 + (interaction.user.id % 71)
-        set_last_work(interaction.guild.id, interaction.user.id, now.isoformat())
         coins = add_coins(interaction.guild.id, interaction.user.id, reward)
         xp = add_xp(interaction.guild.id, interaction.user.id, 10)
         await interaction.response.send_message(f"💼 **Work abgeschlossen!**\n\n🪙 +{reward} Coins · ⭐ +10 XP\n💰 Kontostand: **{coins} Coins** · XP: **{xp}**")
@@ -100,11 +108,9 @@ class Economy(commands.Cog):
             return await interaction.response.send_message("❌ Nur auf einem Server verfügbar.", ephemeral=True)
         if member.bot or member == interaction.user:
             return await interaction.response.send_message("❌ Ungültiger Empfänger.", ephemeral=True)
-        balance = get_economy(interaction.guild.id, interaction.user.id)["coins"]
-        if int(balance) < amount:
-            return await interaction.response.send_message("❌ Du hast nicht genug Coins.", ephemeral=True)
-        add_coins(interaction.guild.id, interaction.user.id, -amount)
-        add_coins(interaction.guild.id, member.id, amount)
+        if not transfer_coins(interaction.guild.id, interaction.user.id, member.id, amount):
+            balance = get_economy(interaction.guild.id, interaction.user.id)["coins"]
+            return await interaction.response.send_message(f"❌ Überweisung nicht möglich. Dein Kontostand: **{balance} Coins**.", ephemeral=True)
         await interaction.response.send_message(f"💸 **{amount} Coins** an {member.mention} überwiesen.")
 
 
