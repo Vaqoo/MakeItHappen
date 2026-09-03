@@ -6,7 +6,7 @@ DB_PATH = Path("data/makeithappen.db")
 
 def _connect() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(DB_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
     return connection
 
@@ -15,6 +15,7 @@ def init_db() -> None:
     with _connect() as db:
         db.executescript(
             """
+            PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS guild_config (
                 guild_id INTEGER PRIMARY KEY,
                 log_channel_id INTEGER,
@@ -47,6 +48,8 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS inventory (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, item_id TEXT NOT NULL, purchased_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (guild_id, user_id, item_id));
             CREATE TABLE IF NOT EXISTS birthdays (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, month INTEGER NOT NULL, day INTEGER NOT NULL, PRIMARY KEY (guild_id, user_id));
             CREATE TABLE IF NOT EXISTS warnings (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, moderator_id INTEGER NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS temp_voice_rooms (guild_id INTEGER NOT NULL, channel_id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL, category_id INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+            CREATE TABLE IF NOT EXISTS lockdown_overrides (guild_id INTEGER NOT NULL, channel_id INTEGER NOT NULL, send_messages INTEGER NOT NULL, PRIMARY KEY (guild_id, channel_id));
             """
         )
         migrations = {
@@ -109,10 +112,28 @@ def set_daily(guild_id: int, user_id: int, day: str, streak: int) -> None:
         db.execute("UPDATE user_stats SET last_daily = ?, streak = ? WHERE guild_id = ? AND user_id = ?", (day, streak, guild_id, user_id))
 
 
+def claim_daily(guild_id: int, user_id: int, today: str, yesterday: str) -> int | None:
+    with _connect() as db:
+        db.execute("INSERT OR IGNORE INTO user_stats (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
+        row = db.execute("SELECT last_daily, streak FROM user_stats WHERE guild_id = ? AND user_id = ?", (guild_id, user_id)).fetchone()
+        if row["last_daily"] == today:
+            return None
+        streak = int(row["streak"] or 0) + 1 if row["last_daily"] == yesterday else 1
+        db.execute("UPDATE user_stats SET last_daily = ?, streak = ? WHERE guild_id = ? AND user_id = ?", (today, streak, guild_id, user_id))
+        return streak
+
+
 def set_last_work(guild_id: int, user_id: int, timestamp: str) -> None:
     with _connect() as db:
         db.execute("INSERT OR IGNORE INTO user_stats (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
         db.execute("UPDATE user_stats SET last_work = ? WHERE guild_id = ? AND user_id = ?", (timestamp, guild_id, user_id))
+
+
+def claim_work(guild_id: int, user_id: int, timestamp: str, cutoff: str) -> bool:
+    with _connect() as db:
+        db.execute("INSERT OR IGNORE INTO user_stats (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
+        changed = db.execute("UPDATE user_stats SET last_work = ? WHERE guild_id = ? AND user_id = ? AND (last_work IS NULL OR last_work < ?)", (timestamp, guild_id, user_id, cutoff)).rowcount
+        return changed > 0
 
 
 def add_goal(guild_id: int, user_id: int, title: str) -> int:
@@ -139,6 +160,11 @@ def delete_goal(guild_id: int, user_id: int, goal_id: int) -> bool:
 def award(guild_id: int, user_id: int, achievement: str) -> bool:
     with _connect() as db:
         return db.execute("INSERT OR IGNORE INTO achievements (guild_id, user_id, achievement) VALUES (?, ?, ?)", (guild_id, user_id, achievement)).rowcount > 0
+
+
+def remove_achievement(guild_id: int, user_id: int, achievement: str) -> bool:
+    with _connect() as db:
+        return db.execute("DELETE FROM achievements WHERE guild_id = ? AND user_id = ? AND achievement = ?", (guild_id, user_id, achievement)).rowcount > 0
 
 
 def get_achievements(guild_id: int, user_id: int):
@@ -229,6 +255,19 @@ def add_coins(guild_id: int, user_id: int, amount: int) -> int:
         return int(db.execute("SELECT coins FROM economy WHERE guild_id = ? AND user_id = ?", (guild_id, user_id)).fetchone()["coins"])
 
 
+def transfer_coins(guild_id: int, sender_id: int, receiver_id: int, amount: int) -> bool:
+    if amount <= 0 or sender_id == receiver_id:
+        return False
+    with _connect() as db:
+        db.execute("INSERT OR IGNORE INTO economy (guild_id, user_id) VALUES (?, ?)", (guild_id, sender_id))
+        db.execute("INSERT OR IGNORE INTO economy (guild_id, user_id) VALUES (?, ?)", (guild_id, receiver_id))
+        changed = db.execute("UPDATE economy SET coins = coins - ? WHERE guild_id = ? AND user_id = ? AND coins >= ?", (amount, guild_id, sender_id, amount)).rowcount
+        if changed != 1:
+            return False
+        db.execute("UPDATE economy SET coins = coins + ? WHERE guild_id = ? AND user_id = ?", (amount, guild_id, receiver_id))
+        return True
+
+
 def buy_item(guild_id: int, user_id: int, item_id: str, price: int) -> bool:
     with _connect() as db:
         db.execute("INSERT OR IGNORE INTO economy (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
@@ -259,4 +298,40 @@ def get_birthday(guild_id: int, user_id: int):
 
 def get_birthdays(guild_id: int, month: int, day: int):
     with _connect() as db:
-        return db.execute("SELECT user_id FROM birthdays WHERE guild_id = ? AND month = ? AND day = ?", (guild_id, month, day)).fetchall()
+        return db.execute("SELECT * FROM birthdays WHERE guild_id = ? AND month = ? AND day = ?", (guild_id, month, day)).fetchall()
+
+
+def set_temp_voice_owner(guild_id: int, channel_id: int, owner_id: int, category_id: int | None) -> None:
+    with _connect() as db:
+        db.execute("INSERT OR REPLACE INTO temp_voice_rooms (guild_id, channel_id, owner_id, category_id) VALUES (?, ?, ?, ?)", (guild_id, channel_id, owner_id, category_id))
+
+
+def get_temp_voice_owner(channel_id: int) -> int | None:
+    with _connect() as db:
+        row = db.execute("SELECT owner_id FROM temp_voice_rooms WHERE channel_id = ?", (channel_id,)).fetchone()
+        return int(row["owner_id"]) if row else None
+
+
+def remove_temp_voice_room(channel_id: int) -> None:
+    with _connect() as db:
+        db.execute("DELETE FROM temp_voice_rooms WHERE channel_id = ?", (channel_id,))
+
+
+def get_temp_voice_rooms(guild_id: int):
+    with _connect() as db:
+        return db.execute("SELECT * FROM temp_voice_rooms WHERE guild_id = ?", (guild_id,)).fetchall()
+
+
+def save_lockdown_override(guild_id: int, channel_id: int, send_messages: int) -> None:
+    with _connect() as db:
+        db.execute("INSERT OR REPLACE INTO lockdown_overrides (guild_id, channel_id, send_messages) VALUES (?, ?, ?)", (guild_id, channel_id, send_messages))
+
+
+def get_lockdown_overrides(guild_id: int):
+    with _connect() as db:
+        return db.execute("SELECT channel_id, send_messages FROM lockdown_overrides WHERE guild_id = ?", (guild_id,)).fetchall()
+
+
+def clear_lockdown_overrides(guild_id: int) -> None:
+    with _connect() as db:
+        db.execute("DELETE FROM lockdown_overrides WHERE guild_id = ?", (guild_id,))
