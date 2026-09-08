@@ -14,7 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Regenerate command manifest
-        run: python web/sync_commands.py
-      - name: Fail if manifest is stale
-        run: git diff --exit-code -- web/commands.json
+      - name: Validate command registry
+        run: |
+          python - <<'PY'
+          from web.command_registry import discover_commands
+          commands = discover_commands()
+          assert commands, "No slash commands discovered"
+          names = [command["name"] for command in commands]
+          assert len(names) == len(set(names)), "Duplicate slash command names discovered"
+          print(f"Command registry OK: {len(commands)} commands")
+          PY
