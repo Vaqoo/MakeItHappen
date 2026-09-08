@@ -1,0 +1,20 @@
+name: Command Registry
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regenerate command manifest
+        run: python web/sync_commands.py
+      - name: Fail if manifest is stale
+        run: git diff --exit-code -- web/commands.json
