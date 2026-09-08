@@ -8,6 +8,65 @@ async function api(url, options = {}) {
   return response.json();
 }
 
+function prettyCategory(category) {
+  const names = {
+    motivation: 'Motivation',
+    community: 'Progression & Community',
+    profile: 'Profile',
+    economy: 'Economy',
+    moderation: 'Moderation',
+    server: 'Server',
+    voice: 'Temporary Voice',
+    admin: 'Administration',
+    fun: 'Fun',
+    utility: 'Utility',
+    self_admin: 'Developer',
+    logs: 'Logs',
+  };
+  return names[category] || category.replaceAll('_', ' ');
+}
+
+async function loadCommands() {
+  const container = $('command-groups');
+  if (!container) return;
+  try {
+    const manifest = await api('/api/commands');
+    const groups = new Map();
+    for (const command of manifest.commands) {
+      if (!groups.has(command.category)) groups.set(command.category, []);
+      groups.get(command.category).push(command);
+    }
+
+    container.replaceChildren();
+    for (const [category, commands] of groups) {
+      const group = document.createElement('div');
+      group.className = 'command-group';
+      const heading = document.createElement('div');
+      heading.className = 'command-group-head';
+      heading.innerHTML = `<span>${prettyCategory(category)}</span><b>${commands.length}</b>`;
+      const grid = document.createElement('div');
+      grid.className = 'command-grid';
+      for (const command of commands) {
+        const card = document.createElement('article');
+        card.className = 'command-card';
+        const code = document.createElement('code');
+        code.textContent = `/${command.name}`;
+        const description = document.createElement('p');
+        description.textContent = command.description || 'MIH Command';
+        card.append(code, description);
+        grid.appendChild(card);
+      }
+      group.append(heading, grid);
+      container.appendChild(group);
+    }
+    $('command-status').textContent = `● ${manifest.count} LIVE COMMANDS`;
+  } catch (error) {
+    console.error('MIH command registry load failed', error);
+    $('command-status').textContent = '● REGISTRY ERROR';
+    container.innerHTML = '<p class="loading">Command Registry konnte nicht geladen werden.</p>';
+  }
+}
+
 function renderGuildPicker(guilds) {
   let picker = $('guild-picker');
   if (!picker) {
@@ -176,4 +235,5 @@ document.querySelector('#logout')?.addEventListener('click', async () => {
   location.href = '/';
 });
 
+loadCommands();
 loadMe().catch(console.error);
