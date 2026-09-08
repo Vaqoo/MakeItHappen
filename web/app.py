@@ -10,6 +10,7 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
 from database import _connect, get_achievements, get_economy, get_profile, get_rank, get_stats, get_wins, init_db, set_profile
+from web.command_registry import get_command_manifest
 
 app = FastAPI(title="MakeItHappen Web")
 init_db()
@@ -102,6 +103,12 @@ async def index() -> str:
         return file.read()
 
 
+@app.get("/api/commands")
+async def commands() -> dict:
+    """Expose the bot's live slash-command registry to the website."""
+    return get_command_manifest()
+
+
 @app.get("/api/profile/{guild_id}/{user_id}")
 async def profile(guild_id: int, user_id: int) -> dict:
     return serialize_profile(guild_id, user_id)
@@ -187,9 +194,6 @@ async def callback(request: Request, code: str = "", state: str = ""):
         configured = configured_guild_ids()
         request.session.clear()
         request.session["discord_user"] = user_response.json()
-        # Only keep servers where MIH is actually initialized. This keeps the
-        # signed session cookie small enough for mobile browsers and avoids
-        # selecting an unrelated Discord server as the default profile.
         request.session["discord_guilds"] = [
             {"id": guild["id"], "name": guild["name"], "icon": guild.get("icon")}
             for guild in discord_guilds
