@@ -1,0 +1,5 @@
+{
+  "source": "cogs/*.py",
+  "generated_by": "web/command_registry.py",
+  "commands": []
+}
