@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parent.parent
 COGS = ROOT / "cogs"
 
 
+def _literal(node: ast.AST, default: object = None) -> object:
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, TypeError):
+        return default
+
+
 def discover_commands() -> list[dict[str, str]]:
-    """Discover public slash commands directly from the bot's Cog source files."""
+    """Discover slash commands directly from the bot's Cog source files."""
     commands: list[dict[str, str]] = []
     for path in sorted(COGS.glob("*.py")):
         if path.name.startswith("__"):
@@ -28,12 +35,16 @@ def discover_commands() -> list[dict[str, str]]:
                 name = None
                 description = ""
                 for keyword in decorator.keywords:
-                    if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
-                        name = keyword.value.value
-                    elif keyword.arg == "description" and isinstance(keyword.value, ast.Constant):
-                        description = str(keyword.value.value)
+                    if keyword.arg == "name":
+                        value = _literal(keyword.value)
+                        if isinstance(value, str):
+                            name = value
+                    elif keyword.arg == "description":
+                        value = _literal(keyword.value)
+                        if value is not None:
+                            description = str(value)
                 if not name:
-                    continue
+                    name = node.name
                 commands.append({
                     "name": str(name),
                     "description": description,
@@ -44,7 +55,15 @@ def discover_commands() -> list[dict[str, str]]:
     return sorted(commands, key=lambda item: (item["category"], item["name"]))
 
 
-if __name__ == "__main__":
-    import json
+def get_command_manifest() -> dict[str, object]:
+    commands = discover_commands()
+    return {
+        "source": "cogs/*.py",
+        "generated_by": "web/command_registry.py",
+        "count": len(commands),
+        "commands": commands,
+    }
 
-    print(json.dumps(discover_commands(), ensure_ascii=False, indent=2))
+
+if __name__ == "__main__":
+    print(json.dumps(get_command_manifest(), ensure_ascii=False, indent=2))
