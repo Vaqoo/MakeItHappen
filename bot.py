@@ -29,7 +29,10 @@ class MakeItHappenBot(commands.Bot):
         self.last_quote: str | None = None
 
     async def setup_hook(self) -> None:
+        logging.info("Database backend: PostgreSQL / Supabase")
         init_db()
+        logging.info("Database schema check: OK")
+
         extensions = (
             "cogs.moderation", "cogs.utility", "cogs.fun", "cogs.motivation", "cogs.community",
             "cogs.voice", "cogs.logs", "cogs.admin", "cogs.profile", "cogs.economy", "cogs.server",
