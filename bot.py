@@ -38,10 +38,17 @@ class MakeItHappenBot(commands.Bot):
         for extension in extensions:
             await self.load_extension(extension)
             logging.info("Loaded %s", extension)
+
         if settings.guild_id:
+            # Development commands are guild-scoped. Remove any old global
+            # registrations so the same commands do not appear twice.
             guild = discord.Object(id=settings.guild_id)
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
+
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+
             logging.info("Synced %d commands to development guild %s", len(synced), settings.guild_id)
         else:
             synced = await self.tree.sync()
